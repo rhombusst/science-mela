@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart IoT Boat Control</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: linear-gradient(135deg,#001f3f 0%,#0a2342 100%);
+      color: white; min-height: 100vh; overflow-x: hidden;
+    }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    .header {
+      text-align: center; padding: 30px 10px;
+      background: rgba(255,255,255,0.05); border-radius: 20px;
+      margin-bottom: 30px; backdrop-filter: blur(10px);
+    }
+    .header h1 { font-size: 2.2rem; font-weight: 600; color:#4db8ff; }
+    .status-grid {
+      display:grid; grid-template-columns: repeat(auto-fit,minmax(250px,1fr));
+      gap:20px; margin-bottom:30px;
+    }
+    .status-card {
+      background: rgba(255,255,255,0.08); border-radius:15px;
+      padding:20px; text-align:center;
+    }
+    .status-indicator {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 12px; border-radius:8px; font-weight:600;
+    }
+    .status-online { background:rgba(34,197,94,0.2); color:#4ade80; }
+    .status-offline { background:rgba(239,68,68,0.2); color:#f87171; }
+    .status-dot { width:10px; height:10px; border-radius:50%; background:currentColor; }
+    .control-section {
+      display:grid; grid-template-columns: repeat(auto-fit,minmax(320px,1fr));
+      gap:25px; margin-bottom:30px;
+    }
+    .control-card {
+      background: rgba(255,255,255,0.08);
+      border-radius:15px; padding:20px;
+    }
+    .control-card h3 { font-size:1.2rem; margin-bottom:15px; color:#4db8ff; text-align:center; }
+    .button-grid { display:grid; grid-template-columns: repeat(2,1fr); gap:15px; margin-top:10px; }
+    .btn {
+      padding:12px 15px; border:none; border-radius:10px;
+      font-weight:600; cursor:pointer; transition:0.3s;
+    }
+    .btn-primary { background:linear-gradient(135deg,#3b82f6,#1d4ed8); color:white; }
+    .btn-danger { background:linear-gradient(135deg,#ef4444,#dc2626); color:white; }
+    .btn-success { background:linear-gradient(135deg,#10b981,#059669); color:white; }
+    .btn-warning { background:linear-gradient(135deg,#facc15,#eab308); color:black; }
+    .gamepad {
+      display:grid; grid-template-columns:repeat(3,1fr);
+      gap:15px; justify-items:center; align-items:center;
+    }
+    .gamepad .btn { min-width:100px; min-height:60px; }
+    .sensor-grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(350px,1fr)); gap:25px; margin-top:20px; }
+    #camStream {
+      width:100%; border-radius:12px; max-height:350px;
+      object-fit:cover; border:2px solid rgba(255,255,255,0.2);
+    }
+    .log-container { background:rgba(0,0,0,0.3); border-radius:12px; padding:15px; height:250px; overflow-y:auto; font-family:monospace; font-size:0.9rem; }
+    .log-entry { padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.1); }
+    .log-timestamp { color:#6b7280; } .log-error{color:#f87171;} .log-success{color:#4ade80;}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🚤 Smart IoT Boat Control Dashboard</h1>
+      <p>Control your boat, monitor sensors, track GPS & watch live stream</p>
+    </div>
+
+    <!-- Status -->
+    <div class="status-grid">
+      <div class="status-card"><h4>Device</h4><div id="connectionStatus" class="status-indicator status-offline"><div class="status-dot"></div><span>Offline</span></div></div>
+      <div class="status-card"><h4>GPS</h4><div id="gpsStatus" class="status-indicator status-offline"><div class="status-dot"></div><span>Not Located</span></div></div>
+      <div class="status-card"><h4>pH Sensor</h4><div id="phStatus" class="status-indicator status-offline"><div class="status-dot"></div><span>Not Read</span></div></div>
+      <div class="status-card"><h4>Camera</h4><div id="camStatus" class="status-indicator status-offline"><div class="status-dot"></div><span>Stopped</span></div></div>
+    </div>
+
+    <!-- Device Config -->
+    <div class="control-card">
+      <h3>Device Configuration</h3>
+      <div class="button-grid">
+        <button class="btn btn-primary" onclick="setDeviceIP()">Set Boat Controller IP</button>
+        <button class="btn btn-primary" onclick="setCamIP()">Set ESP32-CAM IP</button>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="control-section">
+      <div class="control-card">
+        <h3>Boat Movement</h3>
+        <div class="gamepad">
+          <button class="btn btn-primary" onclick="sendCommand('forward')">Forward</button>
+          <button class="btn btn-primary" onclick="sendCommand('left')">Left</button>
+          <button class="btn btn-danger" onclick="sendCommand('stop')">Stop</button>
+          <button class="btn btn-primary" onclick="sendCommand('right')">Right</button>
+          <button class="btn btn-primary" onclick="sendCommand('back')">Back</button>
+          <button class="btn btn-danger" onclick="sendCommand('emergency')">Emergency</button>
+        </div>
+      </div>
+
+      <div class="control-card">
+        <h3>Extra Boat Functions</h3>
+        <div class="button-grid">
+          <button class="btn btn-warning" onclick="sendCommand('anchor')">Anchor</button>
+          <button class="btn btn-success" onclick="sendCommand('lights')">Lights</button>
+          <button class="btn btn-primary" onclick="sendCommand('horn')">Horn</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sensors & Camera -->
+    <div class="sensor-grid">
+      <div class="control-card">
+        <h3>GPS Location</h3>
+        <div id="locationInfo"><p>Click "Get Location" to enable GPS tracking</p></div>
+        <div class="button-grid">
+          <button class="btn btn-primary" onclick="getLocation()">Get Location</button>
+          <button class="btn btn-primary" onclick="openInMaps()">Open in Maps</button>
+        </div>
+      </div>
+
+      <div class="control-card">
+        <h3>pH Sensor</h3>
+        <p id="phValue" style="font-size:1.2rem; text-align:center;">--</p>
+        <div class="button-grid">
+          <button class="btn btn-primary" onclick="getPhValue()">Get pH Value</button>
+        </div>
+      </div>
+
+      <div class="control-card">
+        <h3>ESP32-CAM Live Stream</h3>
+        <div style="text-align:center;"><img id="camStream" src="" alt="ESP32-CAM Stream" /></div>
+        <div class="button-grid">
+          <button class="btn btn-primary" onclick="reloadCam()">Reconnect</button>
+          <button class="btn btn-danger" onclick="stopCamStream()">Stop</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logs -->
+    <div class="control-card" style="margin-top:30px;">
+      <h3>Activity Log</h3>
+      <div id="logContainer" class="log-container">
+        <div class="log-entry"><span class="log-timestamp">[System]</span> Boat Control Initialized</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let isOnline = false;
+    let deviceUrl = "";
+    let camUrl = "";
+
+    function addLog(msg, type="info"){
+      const ts=new Date().toLocaleTimeString();
+      const log=document.getElementById("logContainer");
+      const e=document.createElement("div"); e.className="log-entry";
+      let cls=""; if(type==="error")cls="log-error"; if(type==="success")cls="log-success";
+      e.innerHTML=`<span class="log-timestamp">[${ts}]</span> <span class="${cls}">${msg}</span>`;
+      log.appendChild(e); log.scrollTop=log.scrollHeight;
+    }
+
+    function updateStatus(id, online, text){
+      const el=document.getElementById(id);
+      el.className=`status-indicator ${online?"status-online":"status-offline"}`;
+      el.querySelector("span").textContent=text;
+    }
+
+    function setDeviceIP() {
+      let newIP = prompt("Enter Boat Controller (NodeMCU) IP:", deviceUrl || "http://192.168.x.x");
+      if (newIP) {
+        if (!newIP.startsWith("http")) newIP = "http://" + newIP;
+        deviceUrl = newIP;
+        localStorage.setItem("deviceUrl", deviceUrl);
+        addLog("NodeMCU IP saved: " + deviceUrl, "success");
+        testConnection();
+      }
+    }
+
+    function setCamIP() {
+      let newCam = prompt("Enter ESP32-CAM Stream URL (e.g. http://192.168.1.50:81/stream):", camUrl || "");
+      if (newCam) {
+        if (!newCam.startsWith("http")) newCam = "http://" + newCam;
+        camUrl = newCam;
+        localStorage.setItem("camUrl", camUrl);
+        document.getElementById("camStream").src = camUrl;
+        updateStatus("camStatus", true, "Streaming");
+        addLog("ESP32-CAM IP saved: " + camUrl, "success");
+      }
+    }
+
+    function testConnection(){
+      if (!deviceUrl) { addLog("Set NodeMCU IP first","error"); return; }
+      fetch(deviceUrl,{method:"GET",signal:AbortSignal.timeout(2000)})
+        .then(r=>{isOnline=true; updateStatus("connectionStatus",true,"Online"); addLog("Boat device connected","success");})
+        .catch(e=>{isOnline=false; updateStatus("connectionStatus",false,"Offline"); addLog("Device offline","error");});
+    }
+
+    function sendCommand(cmd){
+      if(!isOnline){ addLog("Boat device offline","error"); return; }
+      fetch(`${deviceUrl}/${cmd}`).then(r=>{ if(r.ok) addLog("Command sent: "+cmd,"success"); else addLog("Failed "+cmd,"error"); });
+    }
+
+    function getLocation(){
+      if(!navigator.geolocation){ addLog("GPS not supported","error"); return; }
+      navigator.geolocation.getCurrentPosition(pos=>{
+        updateStatus("gpsStatus",true,"Located");
+        const info=document.getElementById("locationInfo");
+        info.innerHTML=`<p><b>Lat:</b> ${pos.coords.latitude.toFixed(6)}<br><b>Lng:</b> ${pos.coords.longitude.toFixed(6)}</p>`;
+        addLog("GPS location updated","success");
+      },()=>{updateStatus("gpsStatus",false,"Error"); addLog("GPS error","error");});
+    }
+
+    function openInMaps(){ addLog("Opening maps"); }
+
+    function getPhValue(){
+      if(!isOnline){ addLog("Device offline, cannot read pH","error"); return; }
+      fetch(`${deviceUrl}/ph`).then(r=>r.text()).then(d=>{
+        document.getElementById("phValue").textContent="pH: "+d;
+        updateStatus("phStatus",true,"Online"); addLog("pH value: "+d,"success");
+      }).catch(()=>{ updateStatus("phStatus",false,"Error"); addLog("Failed to get pH","error"); });
+    }
+
+    function reloadCam(){
+      camUrl = localStorage.getItem("camUrl");
+      if (camUrl) {
+        document.getElementById("camStream").src = camUrl;
+        updateStatus("camStatus", true, "Streaming");
+        addLog("Camera reloaded","success");
+      }
+    }
+
+    function stopCamStream(){
+      document.getElementById("camStream").src="";
+      updateStatus("camStatus",false,"Stopped");
+      addLog("Camera stopped","success");
+    }
+
+    function initialize(){
+      const savedDevice = localStorage.getItem("deviceUrl");
+      const savedCam = localStorage.getItem("camUrl");
+      if(savedDevice){ deviceUrl=savedDevice; addLog("Loaded NodeMCU IP: " + deviceUrl,"success"); }
+      if(savedCam){ camUrl=savedCam; document.getElementById("camStream").src=camUrl; updateStatus("camStatus",true,"Streaming"); addLog("Loaded ESP32-CAM IP: " + camUrl,"success"); }
+      if(savedDevice) testConnection();
+      addLog("System initialized","success");
+    }
+    document.addEventListener("DOMContentLoaded",initialize);
+  </script>
+</body>
+</html>
