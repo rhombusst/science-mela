@@ -1,77 +1,116 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Smart IoT Boat Control</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: system-ui, sans-serif;
-      background: linear-gradient(135deg,#001f3f 0%,#0a2342 100%);
-      color: white; min-height: 100vh; overflow-x: hidden;
+    :root{
+      --bg-1: #001f3f;
+      --bg-2: #0a2342;
+      --card-bg: rgba(255,255,255,0.08);
+      --accent: #4db8ff;
+      --text: #ffffff;
+      --muted: #9aa8b6;
+      --status-online-bg: rgba(34,197,94,0.2);
+      --status-online-color: #4ade80;
+      --status-offline-bg: rgba(239,68,68,0.2);
+      --status-offline-color: #f87171;
+      --glass: rgba(255,255,255,0.03);
     }
-    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-    .header {
-      text-align: center; padding: 30px 10px;
-      background: rgba(255,255,255,0.05); border-radius: 20px;
-      margin-bottom: 30px; backdrop-filter: blur(10px);
+    .light{
+      --bg-1: #f5f7fb;
+      --bg-2: #e9eef7;
+      --card-bg: rgba(0,0,0,0.04);
+      --accent: #0b6fb7;
+      --text: #0b2140;
+      --muted: #4b5563;
+      --status-online-bg: rgba(34,197,94,0.12);
+      --status-online-color: #096b2e;
+      --status-offline-bg: rgba(239,68,68,0.12);
+      --status-offline-color: #7a1b1b;
+      --glass: rgba(11,33,64,0.04);
     }
-    .header h1 { font-size: 2.2rem; font-weight: 600; color:#4db8ff; }
-    .status-grid {
-      display:grid; grid-template-columns: repeat(auto-fit,minmax(250px,1fr));
-      gap:20px; margin-bottom:30px;
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      background: linear-gradient(135deg,var(--bg-1),var(--bg-2));
+      color:var(--text);
+      min-height:100vh;
+      transition: background-color .35s, color .35s;
     }
-    .status-card {
-      background: rgba(255,255,255,0.08); border-radius:15px;
-      padding:20px; text-align:center;
+    .container{max-width:1200px;margin:0 auto;padding:20px}
+
+    .header{
+      position:relative;
+      text-align:center;
+      padding:22px;
+      border-radius:14px;
+      background:linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      margin-bottom:24px;
+      backdrop-filter: blur(6px);
     }
-    .status-indicator {
-      display:inline-flex; align-items:center; gap:8px;
-      padding:8px 12px; border-radius:8px; font-weight:600;
+    .header h1{margin:0;font-size:1.6rem;color:var(--accent);font-weight:600}
+    .header p{margin:5px 0 0;font-size:0.95rem;color:var(--muted)}
+
+    /* Dark/Light toggle */
+    .theme-toggle{
+      position:absolute;
+      right:18px;
+      top:14px;
+      border:1px solid rgba(255,255,255,0.06);
+      background:var(--glass);
+      padding:8px 12px;
+      border-radius:10px;
+      cursor:pointer;
+      color:var(--text);
+      font-weight:600;
+      display:flex;align-items:center;gap:8px;
     }
-    .status-online { background:rgba(34,197,94,0.2); color:#4ade80; }
-    .status-offline { background:rgba(239,68,68,0.2); color:#f87171; }
-    .status-dot { width:10px; height:10px; border-radius:50%; background:currentColor; }
-    .control-section {
-      display:grid; grid-template-columns: repeat(auto-fit,minmax(320px,1fr));
-      gap:25px; margin-bottom:30px;
+
+    .status-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+      gap:18px;margin-bottom:24px;
     }
-    .control-card {
-      background: rgba(255,255,255,0.08);
-      border-radius:15px; padding:20px;
-    }
-    .control-card h3 { font-size:1.2rem; margin-bottom:15px; color:#4db8ff; text-align:center; }
-    .button-grid { display:grid; grid-template-columns: repeat(2,1fr); gap:15px; margin-top:10px; }
-    .btn {
-      padding:12px 15px; border:none; border-radius:10px;
-      font-weight:600; cursor:pointer; transition:0.3s;
-    }
-    .btn-primary { background:linear-gradient(135deg,#3b82f6,#1d4ed8); color:white; }
-    .btn-danger { background:linear-gradient(135deg,#ef4444,#dc2626); color:white; }
-    .btn-success { background:linear-gradient(135deg,#10b981,#059669); color:white; }
-    .btn-warning { background:linear-gradient(135deg,#facc15,#eab308); color:black; }
-    .gamepad {
-      display:grid; grid-template-columns:repeat(3,1fr);
-      gap:15px; justify-items:center; align-items:center;
-    }
-    .gamepad .btn { min-width:100px; min-height:60px; }
-    .sensor-grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(350px,1fr)); gap:25px; margin-top:20px; }
-    #camStream {
-      width:100%; border-radius:12px; max-height:350px;
-      object-fit:cover; border:2px solid rgba(255,255,255,0.2);
-    }
-    .log-container { background:rgba(0,0,0,0.3); border-radius:12px; padding:15px; height:250px; overflow-y:auto; font-family:monospace; font-size:0.9rem; }
-    .log-entry { padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.1); }
-    .log-timestamp { color:#6b7280; } .log-error{color:#f87171;} .log-success{color:#4ade80;}
+    .status-card{background:var(--card-bg);border-radius:12px;padding:16px;text-align:center}
+    .status-indicator{display:inline-flex;align-items:center;gap:10px;padding:8px 12px;border-radius:999px;font-weight:700}
+    .status-online{ background:var(--status-online-bg); color:var(--status-online-color);}
+    .status-offline{ background:var(--status-offline-bg); color:var(--status-offline-color);}
+    .status-dot{ width:10px;height:10px;border-radius:50%; background:currentColor }
+
+    .control-section{ display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:20px; margin-bottom:20px; }
+    .control-card{ background:var(--card-bg); padding:16px;border-radius:12px; }
+    .control-card h3{ margin:0 0 10px 0; font-size:1.05rem; color:var(--accent); text-align:center; font-weight:700 }
+    .control-card.config {margin-bottom: 40px;}
+
+    .button-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-top:12px }
+    .btn{padding:10px 12px;border-radius:10px;border:none;font-weight:700;cursor:pointer;}
+    .btn-primary{ background:linear-gradient(135deg,#3b82f6,#1d4ed8); color:white }
+    .btn-danger{ background:linear-gradient(135deg,#ef4444,#dc2626); color:white }
+    .btn-success{ background:linear-gradient(135deg,#10b981,#059669); color:white }
+    .btn-warning{ background:linear-gradient(135deg,#facc15,#eab308); color:#08203a }
+
+    .gamepad{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; justify-items:center; align-items:center; }
+    .gamepad .btn{ min-width:100px; min-height:50px }
+
+    .sensor-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:18px; margin-top:18px; }
+    #camStream{ width:100%; border-radius:10px; max-height:320px; object-fit:cover; border:1px solid rgba(255,255,255,0.06); }
+
+    .log-container{ background:var(--glass); border-radius:10px; padding:12px; height:200px; overflow:auto; font-family:monospace; font-size:0.9rem; }
+    .log-entry{ padding:6px 0; border-bottom:1px dashed rgba(255,255,255,0.1); }
+    .log-timestamp{ color:var(--muted); margin-right:8px }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="header">
+    <header class="header">
       <h1>🚤 Smart IoT Boat Control Dashboard</h1>
-      <p>Control your boat, monitor sensors, track GPS & watch live stream</p>
-    </div>
+      <p>Control your boat • Monitor water pH • GPS • Live Camera</p>
+      <button id="themeToggleBtn" class="theme-toggle"><span id="themeIcon">🌙</span><span id="themeLabel">Dark</span></button>
+    </header>
 
     <!-- Status -->
     <div class="status-grid">
@@ -82,7 +121,7 @@
     </div>
 
     <!-- Device Config -->
-    <div class="control-card">
+    <div class="control-card config">
       <h3>Device Configuration</h3>
       <div class="button-grid">
         <button class="btn btn-primary" onclick="setDeviceIP()">Set Boat Controller IP</button>
@@ -103,9 +142,8 @@
           <button class="btn btn-danger" onclick="sendCommand('emergency')">Emergency</button>
         </div>
       </div>
-
       <div class="control-card">
-        <h3>Extra Boat Functions</h3>
+        <h3>Extra Functions</h3>
         <div class="button-grid">
           <button class="btn btn-warning" onclick="sendCommand('anchor')">Anchor</button>
           <button class="btn btn-success" onclick="sendCommand('lights')">Lights</button>
@@ -124,18 +162,14 @@
           <button class="btn btn-primary" onclick="openInMaps()">Open in Maps</button>
         </div>
       </div>
-
       <div class="control-card">
         <h3>pH Sensor</h3>
-        <p id="phValue" style="font-size:1.2rem; text-align:center;">--</p>
-        <div class="button-grid">
-          <button class="btn btn-primary" onclick="getPhValue()">Get pH Value</button>
-        </div>
+        <p id="phValue" style="font-size:1.1rem; text-align:center;">--</p>
+        <div class="button-grid"><button class="btn btn-primary" onclick="getPhValue()">Get pH Value</button></div>
       </div>
-
       <div class="control-card">
         <h3>ESP32-CAM Live Stream</h3>
-        <div style="text-align:center;"><img id="camStream" src="" alt="ESP32-CAM Stream" /></div>
+        <div style="text-align:center"><img id="camStream" src="" alt="ESP32-CAM Stream" /></div>
         <div class="button-grid">
           <button class="btn btn-primary" onclick="reloadCam()">Reconnect</button>
           <button class="btn btn-danger" onclick="stopCamStream()">Stop</button>
@@ -144,7 +178,7 @@
     </div>
 
     <!-- Logs -->
-    <div class="control-card" style="margin-top:30px;">
+    <div class="control-card" style="margin-top:20px;">
       <h3>Activity Log</h3>
       <div id="logContainer" class="log-container">
         <div class="log-entry"><span class="log-timestamp">[System]</span> Boat Control Initialized</div>
@@ -154,103 +188,110 @@
 
   <script>
     let isOnline = false;
-    let deviceUrl = "";
-    let camUrl = "";
+    let deviceUrl = "", camUrl = "";
+    let currentLat = null, currentLng = null;
 
-    function addLog(msg, type="info"){
+    // Dark/Light mode
+    function applyTheme(theme){
+      if(theme==='light'){document.body.classList.add('light');themeIcon.textContent='☀️';themeLabel.textContent='Light';}
+      else{document.body.classList.remove('light');themeIcon.textContent='🌙';themeLabel.textContent='Dark';}
+      localStorage.setItem('uiTheme',theme);
+    }
+    const themeBtn=document.getElementById('themeToggleBtn');
+    const themeIcon=document.getElementById('themeIcon');
+    const themeLabel=document.getElementById('themeLabel');
+    themeBtn.addEventListener('click',()=>{applyTheme(document.body.classList.contains('light')?'dark':'light')});
+    applyTheme(localStorage.getItem('uiTheme')||'dark');
+
+    // Logs
+    function addLog(msg,type="info"){
       const ts=new Date().toLocaleTimeString();
       const log=document.getElementById("logContainer");
       const e=document.createElement("div"); e.className="log-entry";
-      let cls=""; if(type==="error")cls="log-error"; if(type==="success")cls="log-success";
-      e.innerHTML=`<span class="log-timestamp">[${ts}]</span> <span class="${cls}">${msg}</span>`;
+      e.innerHTML=`<span class="log-timestamp">[${ts}]</span> ${msg}`;
       log.appendChild(e); log.scrollTop=log.scrollHeight;
     }
-
     function updateStatus(id, online, text){
       const el=document.getElementById(id);
       el.className=`status-indicator ${online?"status-online":"status-offline"}`;
       el.querySelector("span").textContent=text;
     }
 
-    function setDeviceIP() {
-      let newIP = prompt("Enter Boat Controller (NodeMCU) IP:", deviceUrl || "http://192.168.x.x");
-      if (newIP) {
-        if (!newIP.startsWith("http")) newIP = "http://" + newIP;
-        deviceUrl = newIP;
-        localStorage.setItem("deviceUrl", deviceUrl);
-        addLog("NodeMCU IP saved: " + deviceUrl, "success");
-        testConnection();
-      }
+    // IP prompts
+    function setDeviceIP(){
+      let ip=prompt("Enter Boat Controller IP:", deviceUrl||"");
+      if(ip){ if(!ip.startsWith("http")) ip="http://"+ip; deviceUrl=ip; localStorage.setItem("deviceUrl",ip); addLog("NodeMCU IP set: "+ip,"success"); testConnection(); }
+    }
+    function setCamIP(){
+      let cam=prompt("Enter ESP32-CAM Stream URL:", camUrl||"");
+      if(cam){ if(!cam.startsWith("http")) cam="http://"+cam; camUrl=cam; localStorage.setItem("camUrl",cam); document.getElementById("camStream").src=cam; updateStatus("camStatus",true,"Streaming"); addLog("ESP32-CAM IP set: "+cam,"success"); }
     }
 
-    function setCamIP() {
-      let newCam = prompt("Enter ESP32-CAM Stream URL (e.g. http://192.168.1.50:81/stream):", camUrl || "");
-      if (newCam) {
-        if (!newCam.startsWith("http")) newCam = "http://" + newCam;
-        camUrl = newCam;
-        localStorage.setItem("camUrl", camUrl);
-        document.getElementById("camStream").src = camUrl;
-        updateStatus("camStatus", true, "Streaming");
-        addLog("ESP32-CAM IP saved: " + camUrl, "success");
-      }
-    }
-
+    // Connection + Commands
     function testConnection(){
-      if (!deviceUrl) { addLog("Set NodeMCU IP first","error"); return; }
-      fetch(deviceUrl,{method:"GET",signal:AbortSignal.timeout(2000)})
-        .then(r=>{isOnline=true; updateStatus("connectionStatus",true,"Online"); addLog("Boat device connected","success");})
-        .catch(e=>{isOnline=false; updateStatus("connectionStatus",false,"Offline"); addLog("Device offline","error");});
+      if(!deviceUrl){ updateStatus("connectionStatus",false,"Offline"); return; }
+      fetch(deviceUrl,{signal:AbortSignal.timeout(2000)}).then(r=>{isOnline=true;updateStatus("connectionStatus",true,"Online");})
+      .catch(()=>{isOnline=false;updateStatus("connectionStatus",false,"Offline");});
     }
+    function sendCommand(cmd){ if(isOnline) fetch(deviceUrl+"/"+cmd); else addLog("Device offline","error"); }
 
-    function sendCommand(cmd){
-      if(!isOnline){ addLog("Boat device offline","error"); return; }
-      fetch(`${deviceUrl}/${cmd}`).then(r=>{ if(r.ok) addLog("Command sent: "+cmd,"success"); else addLog("Failed "+cmd,"error"); });
-    }
-
+    // GPS
+    // function getLocation(){
+    //   if(!navigator.geolocation){ addLog("No GPS support","error"); return; }
+    //   updateStatus("gpsStatus",false,"Locating...");
+    //   navigator.geolocation.getCurrentPosition(pos=>{
+    //     currentLat=pos.coords.latitude.toFixed(6); currentLng=pos.coords.longitude.toFixed(6);
+    //     updateStatus("gpsStatus",true,"Located");
+    //     document.getElementById("locationInfo").innerHTML=`<p><b>Lat:</b> ${currentLat}<br><b>Lng:</b> ${currentLng}</p>`;
+    //   },()=>{updateStatus("gpsStatus",false,"Error");});
+    // }
+       
     function getLocation(){
-      if(!navigator.geolocation){ addLog("GPS not supported","error"); return; }
-      navigator.geolocation.getCurrentPosition(pos=>{
-        updateStatus("gpsStatus",true,"Located");
-        const info=document.getElementById("locationInfo");
-        info.innerHTML=`<p><b>Lat:</b> ${pos.coords.latitude.toFixed(6)}<br><b>Lng:</b> ${pos.coords.longitude.toFixed(6)}</p>`;
-        addLog("GPS location updated","success");
-      },()=>{updateStatus("gpsStatus",false,"Error"); addLog("GPS error","error");});
-    }
-
-    function openInMaps(){ addLog("Opening maps"); }
-
-    function getPhValue(){
-      if(!isOnline){ addLog("Device offline, cannot read pH","error"); return; }
-      fetch(`${deviceUrl}/ph`).then(r=>r.text()).then(d=>{
-        document.getElementById("phValue").textContent="pH: "+d;
-        updateStatus("phStatus",true,"Online"); addLog("pH value: "+d,"success");
-      }).catch(()=>{ updateStatus("phStatus",false,"Error"); addLog("Failed to get pH","error"); });
-    }
-
-    function reloadCam(){
-      camUrl = localStorage.getItem("camUrl");
-      if (camUrl) {
-        document.getElementById("camStream").src = camUrl;
-        updateStatus("camStatus", true, "Streaming");
-        addLog("Camera reloaded","success");
+  if(!isOnline){ addLog("Boat device offline, cannot get GPS", "error"); return; }
+  fetch(deviceUrl + "/gps")
+    .then(r => r.json())
+    .then(data => {
+      if(data.lat && data.lng){
+        currentLat = data.lat;
+        currentLng = data.lng;
+        document.getElementById("locationInfo").innerHTML =
+          `<p><b>Lat:</b> ${currentLat}<br><b>Lng:</b> ${currentLng}</p>`;
+        updateStatus("gpsStatus", true, "Located");
+        addLog("GPS from NodeMCU: " + currentLat + ", " + currentLng, "success");
+      } else {
+        updateStatus("gpsStatus", false, "Error");
+        addLog("GPS data not available", "error");
       }
+    })
+    .catch(() => {
+      updateStatus("gpsStatus", false, "Error");
+      addLog("Failed to get GPS from NodeMCU", "error");
+    });
+}
+
+
+       function openInMaps(){
+      if(currentLat && currentLng) window.open(`https://www.google.com/maps?q=${currentLat},${currentLng}`,"_blank");
+      else addLog("No GPS coordinates yet","error");
     }
 
-    function stopCamStream(){
-      document.getElementById("camStream").src="";
-      updateStatus("camStatus",false,"Stopped");
-      addLog("Camera stopped","success");
+    // pH
+    function getPhValue(){
+      if(!isOnline){addLog("Device offline","error");return;}
+      fetch(deviceUrl+"/ph").then(r=>r.text()).then(d=>{document.getElementById("phValue").textContent="pH: "+d;updateStatus("phStatus",true,"Online");});
     }
 
-    function initialize(){
-      const savedDevice = localStorage.getItem("deviceUrl");
-      const savedCam = localStorage.getItem("camUrl");
-      if(savedDevice){ deviceUrl=savedDevice; addLog("Loaded NodeMCU IP: " + deviceUrl,"success"); }
-      if(savedCam){ camUrl=savedCam; document.getElementById("camStream").src=camUrl; updateStatus("camStatus",true,"Streaming"); addLog("Loaded ESP32-CAM IP: " + camUrl,"success"); }
-      if(savedDevice) testConnection();
-      addLog("System initialized","success");
+    // Camera
+    function reloadCam(){ camUrl=localStorage.getItem("camUrl"); if(camUrl){document.getElementById("camStream").src=camUrl; updateStatus("camStatus",true,"Streaming");}}
+    function stopCamStream(){document.getElementById("camStream").src=""; updateStatus("camStatus",false,"Stopped");}
+
+    // Init
+    function init(){
+      deviceUrl=localStorage.getItem("deviceUrl")||""; camUrl=localStorage.getItem("camUrl")||"";
+      if(deviceUrl) testConnection();
+      if(camUrl){document.getElementById("camStream").src=camUrl; updateStatus("camStatus",true,"Streaming");}
     }
-    document.addEventListener("DOMContentLoaded",initialize);
+    document.addEventListener("DOMContentLoaded",init);
   </script>
 </body>
 </html>
