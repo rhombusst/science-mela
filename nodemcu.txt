@@ -1,21 +1,30 @@
-#include <ESP8266WiFi.h>
-#include <ESP8266WebServer.h>
+#include <WiFiS3.h>
+#include <WebServer.h>
+#include <TinyGPS++.h>
 
-// ?? Replace with your WiFi credentials
+// Replace with your WiFi credentials
 const char* ssid = "YOUR_WIFI_SSID";
 const char* password = "YOUR_WIFI_PASSWORD";
 
-// ?? NodeMCU pins (adjust as per your wiring)
-#define MOTOR_FWD D1
-#define MOTOR_BACK D2
-#define MOTOR_LEFT D3
-#define MOTOR_RIGHT D4
-#define ANCHOR_PIN D5
-#define LIGHTS_PIN D6
-#define HORN_PIN D7
-#define PH_SENSOR A0   // pH sensor analog pin
+// Arduino UNO R4 pins (change as per wiring)
+#define MOTOR_FWD   2
+#define MOTOR_BACK  3
+#define MOTOR_LEFT  4
+#define MOTOR_RIGHT 5
+#define ANCHOR_PIN  6
+#define LIGHTS_PIN  7
+#define HORN_PIN    8
+#define PH_SENSOR   A0   // pH sensor analog pin
 
-ESP8266WebServer server(80);
+WebServer server(80);
+
+// GPS setup
+TinyGPSPlus gps;
+HardwareSerial GPSSerial(1); // use Serial1 (pins 0=TX, 1=RX on UNO R4)
+
+// Calibration parameters for pH sensor
+float calibration_offset = 0.0; // shifts reading
+float calibration_slope  = 1.0; // scales reading
 
 // Stop all motors
 void stopAll() {
@@ -27,20 +36,24 @@ void stopAll() {
 
 void setup() {
   Serial.begin(115200);
+  GPSSerial.begin(9600); // GPS modules usually use 9600 baud
 
   // Connect to WiFi
+  Serial.print("Connecting to WiFi: ");
+  Serial.println(ssid);
   WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
+
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
     attempts++;
-    if (attempts > 20) { // ~10 seconds timeout
+    if (attempts > 20) {  // ~10s timeout
       Serial.println("\nFailed to connect. Restarting...");
-      ESP.restart();
+      NVIC_SystemReset(); // reset UNO R4
     }
   }
+
   Serial.println("\nWiFi connected!");
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
@@ -56,55 +69,48 @@ void setup() {
 
   stopAll();
 
-  // Routes
+  // ================= ROUTES =================
+
   server.on("/", []() {
-    server.sendHeader("Access-Control-Allow-Origin", "*");
-    server.send(200, "text/plain", "Smart IoT Boat - NodeMCU Online");
+    server.send(200, "text/plain", "Smart IoT Boat - Arduino UNO R4 Online");
   });
 
   server.on("/forward", []() {
     stopAll();
     digitalWrite(MOTOR_FWD, HIGH);
-    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", "Forward");
   });
 
   server.on("/back", []() {
     stopAll();
     digitalWrite(MOTOR_BACK, HIGH);
-    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", "Backward");
   });
 
   server.on("/left", []() {
     stopAll();
     digitalWrite(MOTOR_LEFT, HIGH);
-    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", "Left");
   });
 
   server.on("/right", []() {
     stopAll();
     digitalWrite(MOTOR_RIGHT, HIGH);
-    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", "Right");
   });
 
   server.on("/stop", []() {
     stopAll();
-    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", "Stopped");
   });
 
   server.on("/anchor", []() {
     digitalWrite(ANCHOR_PIN, !digitalRead(ANCHOR_PIN));
-    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", "Anchor toggled");
   });
 
   server.on("/lights", []() {
     digitalWrite(LIGHTS_PIN, !digitalRead(LIGHTS_PIN));
-    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", "Lights toggled");
   });
 
@@ -112,28 +118,59 @@ void setup() {
     digitalWrite(HORN_PIN, HIGH);
     delay(500);
     digitalWrite(HORN_PIN, LOW);
-    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "text/plain", "Horn");
   });
 
-  // pH sensor endpoint (returns only word)
+  // ================= pH Sensor =================
   server.on("/ph", []() {
     int sensorValue = analogRead(PH_SENSOR);
-    float voltage = sensorValue * (3.3 / 1023.0);
-    float phValue = 7 + ((2.5 - voltage) / 0.18);
+    float voltage = sensorValue * (5.0 / 1023.0); // UNO R4 ADC = 0–5V
+    float raw_pH = 7 + ((2.5 - voltage) / 0.18);
+
+    // Apply calibration
+    float calibrated_pH = (raw_pH * calibration_slope) + calibration_offset;
 
     String phStatus;
-    if (phValue < 7.0) phStatus = "Acidic";
-    else if (phValue > 7.0) phStatus = "Alkaline";
+    if (calibrated_pH < 7.0) phStatus = "Acidic";
+    else if (calibrated_pH > 7.0) phStatus = "Alkaline";
     else phStatus = "Neutral";
 
-    server.sendHeader("Access-Control-Allow-Origin", "*");
-    server.send(200, "text/plain", phStatus);
+    String response = "pH: " + String(calibrated_pH, 2) + " (" + phStatus + ")";
+    server.send(200, "text/plain", response);
+  });
+
+  // Set calibration parameters
+  server.on("/set_calibration", []() {
+    if (server.hasArg("offset")) {
+      calibration_offset = server.arg("offset").toFloat();
+    }
+    if (server.hasArg("slope")) {
+      calibration_slope = server.arg("slope").toFloat();
+    }
+
+    String response = "Calibration updated -> offset: " + String(calibration_offset) +
+                      ", slope: " + String(calibration_slope);
+    server.send(200, "text/plain", response);
+  });
+
+  // ================= GPS =================
+  server.on("/gps", []() {
+    while (GPSSerial.available() > 0) {
+      gps.encode(GPSSerial.read());
+    }
+
+    if (gps.location.isUpdated()) {
+      String gpsData = "Lat: " + String(gps.location.lat(), 6) +
+                       ", Lng: " + String(gps.location.lng(), 6) +
+                       ", Sat: " + String(gps.satellites.value());
+      server.send(200, "text/plain", gpsData);
+    } else {
+      server.send(200, "text/plain", "Waiting for GPS signal...");
+    }
   });
 
   // Handle unknown routes
   server.onNotFound([]() {
-    server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(404, "text/plain", "Not Found");
   });
 
@@ -143,4 +180,9 @@ void setup() {
 
 void loop() {
   server.handleClient();
+
+  // Keep reading GPS data in background
+  while (GPSSerial.available() > 0) {
+    gps.encode(GPSSerial.read());
+  }
 }
